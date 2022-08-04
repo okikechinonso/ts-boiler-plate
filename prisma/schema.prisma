@@ -7,7 +7,7 @@ generator client {
 }
 
 model Customer {
-    id Int  @unique
+    id Int  @unique @default(autoincrement())
     kyc Int 
     name String
 

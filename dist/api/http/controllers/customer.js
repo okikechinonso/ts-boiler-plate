@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CustomerController = void 0;
 const upgrade_kyc_level_3_1 = require("../../../services/customer/upgrade-kyc-level-3");
 const tsyringe_1 = require("tsyringe");
+const sign_up_1 = require("../../../services/customer/sign-up");
 class CustomerController {
     constructor() {
         this.metaMapWebHook = (request, res) => __awaiter(this, void 0, void 0, function* () {
@@ -22,6 +23,14 @@ class CustomerController {
                 eventName: request.body.eventName,
             });
             return res.send("Successfull");
+        });
+        this.create = (request, res) => __awaiter(this, void 0, void 0, function* () {
+            const signUp = tsyringe_1.container.resolve(sign_up_1.SignUp);
+            const data = yield signUp.execute(request.body.name);
+            return res.send({
+                messsage: "create",
+                data: data
+            });
         });
     }
 }

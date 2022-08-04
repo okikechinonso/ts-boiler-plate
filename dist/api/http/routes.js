@@ -28,5 +28,10 @@ function customerRoute(router) {
             method: "POST",
             handler: customerHandler.metaMapWebHook,
         });
+        router.route({
+            url: "/create",
+            method: "POST",
+            handler: customerHandler.create,
+        });
     });
 }

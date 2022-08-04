@@ -1,8 +1,11 @@
 import { RouteHandler } from "fastify";
 import { UpgradeCustomerKYCToLevel3 } from "../../../services/customer/upgrade-kyc-level-3";
-import { upgradeCustomerKYCToLevel3Schema } from "../schema/customer.shcema";
+
+import { SignUpSchema, upgradeCustomerKYCToLevel3Schema } from "../schema/customer.shcema";
 import { container } from "tsyringe";
 import { Static } from "@sinclair/typebox";
+import { SignUp } from "../../../services/customer/sign-up";
+import { Customer } from "@prisma/client";
 export class CustomerController {
   metaMapWebHook: RouteHandler<
     Static<typeof upgradeCustomerKYCToLevel3Schema>
@@ -14,5 +17,15 @@ export class CustomerController {
       eventName: request.body.eventName,
     });
     return res.send("Successfull");
+  };
+  create: RouteHandler<
+    Static<typeof SignUpSchema>
+        > = async (request, res) => {
+    const signUp = container.resolve(SignUp);
+    const data = await signUp.execute(request.body.name);
+    return res.send({
+        messsage: "create",
+        data: data
+    });
   };
 }

@@ -12,15 +12,24 @@ export class CustomerRepository implements ICustomerRepository {
       },
       data: {
         ...customer,
-        kyc: customer.kyc
-      }
+        kyc: customer.kyc,
+      },
     });
   }
   async find(id: number): Promise<Customer | null> {
     return await this.dbClient.customer.findUnique({
-        where: {
-            id 
-        },
+      where: {
+        id,
+      },
     });
-}
+  }
+
+  async create(data: string): Promise<Customer | null> {
+      return await this.dbClient.customer.create({
+        data: {
+          name: data,
+          kyc: 1
+        }
+      })
+  }
 }

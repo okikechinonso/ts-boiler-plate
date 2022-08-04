@@ -13,5 +13,10 @@ async function customerRoute(router: FastifyInstance) {
     url: "/metamap/webhook",
     method: "POST",
     handler: customerHandler.metaMapWebHook,
-  })
+  });
+  router.route({
+    url: "/create",
+    method: "POST",
+    handler: customerHandler.create,
+  });
 }

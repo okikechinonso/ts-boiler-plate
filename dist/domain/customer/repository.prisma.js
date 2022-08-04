@@ -21,7 +21,7 @@ class CustomerRepository {
                 where: {
                     id: customer.id,
                 },
-                data: Object.assign(Object.assign({}, customer), { kyc: customer.kyc })
+                data: Object.assign(Object.assign({}, customer), { kyc: customer.kyc }),
             });
         });
     }
@@ -29,8 +29,18 @@ class CustomerRepository {
         return __awaiter(this, void 0, void 0, function* () {
             return yield this.dbClient.customer.findUnique({
                 where: {
-                    id
+                    id,
                 },
+            });
+        });
+    }
+    create(data) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return yield this.dbClient.customer.create({
+                data: {
+                    name: data,
+                    kyc: 1
+                }
             });
         });
     }
