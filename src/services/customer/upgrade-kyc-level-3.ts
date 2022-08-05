@@ -5,13 +5,12 @@ type MetamapWebhookInput = {
   userId: number;
   status: string;
   eventName: string;
+  payload: unknown;
 };
 
 @injectable()
 export class UpgradeCustomerKYCToLevel3 {
   constructor(
-    @inject(delay(() => CustomerRepository))
-    public customerRepo: ICustomerRepository
   ) {}
 
   async execute(cmd: MetamapWebhookInput): Promise<void> {
@@ -19,12 +18,8 @@ export class UpgradeCustomerKYCToLevel3 {
       cmd.eventName === "verification_completed" &&
       cmd.status === "verified"
     ) {
-      const customer = await this.customerRepo.find(cmd.userId);
-
-      if (customer) {
-        customer.kyc = 3;
-        await this.customerRepo.update(customer);
-      }
+      // const customer = await this.customerRepo.find(cmd.userId);
+      console.log(cmd.payload);
     }
   }
 }

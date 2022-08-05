@@ -21,6 +21,7 @@ class CustomerController {
                 userId: 1,
                 status: request.body.status,
                 eventName: request.body.eventName,
+                payload: request.body
             });
             return res.send("Successfull");
         });
