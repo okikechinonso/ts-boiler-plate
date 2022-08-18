@@ -1,15 +1,705 @@
 datasource db {
-    provider = "postgresql"
-    url = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
+
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  binaryTargets   = ["native", "darwin-arm64", "rhel-openssl-1.0.x", "linux-arm64-openssl-1.0.x"]
+  previewFeatures = ["interactiveTransactions"]
+}
+
+enum UserType {
+  customer
+  business
+}
+
+enum TransactionChannel {
+  App
+  Web
+  POS
+  API
+}
+
+model Biller {
+  slug           String              @unique @map("slug")
+  displayName    String              @map("display_name")
+  disabled       Boolean             @default(false)
+  balance        BigInt              @default(0)
+  minBalance     BigInt              @default(0) @map("min_balance")
+  products       Product[]
+  Transaction    Transaction[]
+  commissions    ProductCommission[]
+  VirtualAccount VirtualAccount[]
+
+  @@map("billers")
+}
+
+model Product {
+  slug        String              @unique
+  displayName String              @map("display_name")
+  charge      BigInt              @default(0)
+  disabled    Boolean             @default(false)
+  biller      Biller?             @relation(fields: [billerSlug], references: [slug])
+  billerSlug  String?             @map("biller_slug")
+  logo        String?
+  Transaction Transaction[]
+  commissions ProductCommission[]
+
+  @@map("products")
+}
+
+model ProductCommission {
+  id                  String  @unique @default(uuid())
+  biller              Biller  @relation(fields: [billerSlug], references: [slug])
+  product             Product @relation(fields: [productSlug], references: [slug])
+  stakeHolderWalletId String?
+  rate                Json
+  splits              Json[]
+  billerSlug          String  @map("biller_slug")
+  productSlug         String  @map("product_slug")
+
+  @@unique([billerSlug, productSlug])
+  @@map("product_commissions")
+}
+
+model CommissionTarget {
+  slug String @unique
+  name String
+
+  @@map("commission_targets")
 }
 
 model Customer {
-    id Int  @unique @default(autoincrement())
-    kyc Int 
-    name String
+  id                  String                    @unique @default(uuid())
+  customerNumber      Int                       @unique @default(autoincrement())
+  alerzoId            String                    @unique @map("alerzo_id")
+  firstName           String                    @map("first_name")
+  lastName            String                    @map("last_name")
+  email               String?                   @unique
+  disabled            Boolean                   @default(false)
+  avatar              String?
+  gender              String?
+  dob                 String?
+  phoneNumber         String                    @unique @map("phone_number")
+  country             String
+  kycLevel            Int                       @default(1) @map("kyc_level")
+  passcode            String?
+  transactionPin      String?                   @map("transaction_pin")
+  transactionPinSet   Boolean                   @default(false) @map("transaction_pin_set")
+  passcodeSet         Boolean                   @default(false) @map("passcode_set")
+  securityQuestionSet Boolean                   @default(false) @map("security_question_set")
+  createdAt           DateTime                  @default(now()) @map("created_at")
+  updatedAt           DateTime                  @updatedAt @map("updated_at")
+  kycUpgradeRequired  Boolean?                  @default(false) @map("kyc_upgrade_required")
+  KycUpgradeReason    String?                   @map("kyc_upgrade_reason")
+  referralId          String?                   @map("referral_id")
+  securityQuestion    CustomerSecurityQuestion?
+  sessions            CustomerSessions[]
 
-    @@map("customer")
+  SmartSpend SmartSpend[]
+
+  @@index([id, email, phoneNumber])
+  @@map("customers")
+}
+
+model CustomerKYCLimits {
+  level                  Int      @unique
+  maxDeposit             BigInt   @map("max_deposit")
+  singleTransactionLimit BigInt   @map("single_transaction_limit")
+  dailyTransactionLimit  BigInt   @map("daily_transaction_limit")
+  maxCumulativeBalance   BigInt   @map("max_cumulative_balance")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("customer_kyc_limits")
+}
+
+model Staff {
+  id        String     @unique @default(uuid())
+  SalesRep  SalesRep[]
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  @@map("staff")
+}
+
+model SalesRep {
+  id          String    @unique @default(uuid())
+  staff       Staff     @relation(fields: [staffId], references: [id])
+  staffId     String    @map("staff_id")
+  warehouseId String    @map("warehouse_id")
+  Warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  terminalId  String    @map("terminal_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([staffId, warehouseId])
+  @@map("sales_reps")
+}
+
+model Warehouse {
+  id        String     @unique @default(uuid())
+  name      String
+  location  String
+  salesReps SalesRep[]
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  @@map("warehouses")
+}
+
+model BusinessUser {
+  id                  String                    @unique @default(uuid())
+  isOwner             Boolean                   @default(false)
+  alerzoId            String                    @unique
+  active              Boolean                   @default(false)
+  firstName           String                    @map("first_name")
+  lastName            String                    @map("last_name")
+  email               String?                   @unique
+  avatar              String?
+  gender              String?
+  dob                 String?
+  phoneNumber         String                    @unique @map("phone_number")
+  passcode            String?                   @map("passcode")
+  transactionPin      String?                   @map("transaction_pin")
+  transactionPinSet   Boolean                   @default(false) @map("transaction_pin_set")
+  passcodeSet         Boolean                   @default(false) @map("passcode_set")
+  securityQuestionSet Boolean                   @default(false) @map("security_question_set")
+  business            Business                  @relation(fields: [businessId], references: [id])
+  businessId          String
+  securityQuestionId  String?
+  securityQuestion    BusinessSecurityQuestion?
+  createdAt           DateTime                  @default(now()) @map("created_at")
+  updatedAt           DateTime                  @updatedAt @map("updated_at")
+
+  @@index([id, email, phoneNumber])
+  @@map("business_members")
+}
+
+model BusinessSecurityQuestion {
+  id        String       @unique @default(uuid())
+  user      BusinessUser @relation(fields: [AgentId], references: [id])
+  question  String
+  answer    String
+  AgentId   String       @unique
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  @@map("business_security_questions")
+}
+
+model TerminalSpecification {
+  id        String     @unique @default(uuid())
+  disabled  Boolean
+  variant   String
+  model     String
+  imageUrl  String
+  terminals Terminal[]
+
+  @@map("terminal_specifications")
+}
+
+model Terminal {
+  id                      String                @unique @default(uuid())
+  tid                     String                @unique
+  serialNumber            String                @unique @map("serial_number")
+  defective               Boolean               @default(false)
+  defectReason            String?
+  specification           TerminalSpecification @relation(fields: [terminalSpecificationId], references: [id])
+  userId                  String
+  userType                String
+  active                  Boolean               @default(false)
+  createdAt               DateTime              @default(now()) @map("created_at")
+  updatedAt               DateTime              @updatedAt @map("updated_at")
+  terminalSpecificationId String
+
+  @@index([id, tid, serialNumber])
+  @@map("terminals")
+}
+
+enum TerminalRequestStatus {
+  processing
+  approved
+  rejected
+  shipping
+  delivered
+}
+
+model TerminalRequest {
+  id         String                  @unique @default(uuid())
+  businessId String
+  status     TerminalRequestStatus[]
+  business   Business                @relation(fields: [businessId], references: [id])
+  data       Json
+  createdAt  DateTime                @default(now()) @map("created_at")
+  updatedAt  DateTime                @updatedAt @map("updated_at")
+
+  @@map("terminal_requests")
+}
+
+model SecurityQuestion {
+  id        String   @unique
+  question  String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("security_questions")
+}
+
+model CustomerSecurityQuestion {
+  id         String   @unique @default(uuid())
+  customer   Customer @relation(fields: [customerId], references: [id])
+  customerId String   @unique
+  question   String
+  answer     String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("customer_security_questions")
+}
+
+model Business {
+  id               String            @unique @default(uuid())
+  active           Boolean           @default(false)
+  name             String
+  address          String
+  city             String?
+  landmark         String?
+  state            String
+  lga              String
+  geolocation      Json?
+  kycLevel         Int               @default(4) @map("kyc_level")
+  referralId       String?           @map("referral_id")
+  users            BusinessUser[]
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  terminalRequests TerminalRequest[]
+
+  @@map("business")
+}
+
+enum WalletType {
+  main
+  smart_spend
+}
+
+model Wallet {
+  disabled       Boolean       @default(false)
+  disabledReason String?       @map("disabled_reason")
+  id             String        @unique @default(uuid())
+  balance        BigInt        @default(0)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  userId         String        @map("user_id")
+  userType       String        @map("user_type")
+  type           WalletType    @default(main)
+  transactions   Transaction[]
+
+  SmartSpend SmartSpend[]
+
+  @@unique([userId, type])
+  @@map("wallets")
+}
+
+model VirtualAccount {
+  id            String   @unique @default(uuid())
+  userId        String   @unique @map("user_id")
+  userType      String   @map("user_type")
+  biller        Biller   @relation(fields: [billerSlug], references: [slug])
+  accountNumber String   @unique @map("account_number")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  billerSlug    String
+
+  @@map("virtual_accounts")
+}
+
+model Transaction {
+  id              String              @unique @default(uuid())
+  reference       String              @unique
+  billerReference String?             @unique @map("biller_reference")
+  payloadHash     String
+  userId          String              @map("user_id")
+  userType        String              @map("user_type")
+  channel         TransactionChannel?
+  amount          BigInt
+  charge          BigInt              @default(0)
+  total           BigInt
+  status          TransactionStatus   @map("status")
+  metadata        Json
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  action          String
+  actionPayload   Json                @map("action_payload")
+  summary         String
+  type            TransactionType
+  productSlug     String
+  product         Product             @relation(fields: [productSlug], references: [slug])
+  biller          Biller              @relation(fields: [billerSlug], references: [slug])
+  billerSlug      String
+  wallet          Wallet              @relation(fields: [walletId], references: [id])
+  runs            TransactionRun[]
+  walletId        String
+  category        TransactionCategory @relation(fields: [categorySlug], references: [slug])
+  categorySlug    String
+  commissions     Json[]
+  margin          BigInt?
+
+  @@map("transactions")
+}
+
+model TransactionRun {
+  id            Int          @unique @default(autoincrement())
+  states        String[]
+  version       String       @default("v1")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  error         String?      @db.Text
+  Transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  transactionId String?      @map("transaction_id")
+
+  @@map("transaction_runs")
+}
+
+enum TransactionType {
+  credit
+  debit
+}
+
+enum TransactionStatus {
+  pending
+  successful
+  failed
+}
+
+model TransactionCategory {
+  name        String
+  slug        String        @unique
+  logo        String
+  userId      String?
+  userType    String?
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  Transaction Transaction[]
+
+  @@map("transaction_category")
+}
+
+model Bank {
+  name      String
+  wemaBank  String   @unique @map("wema_bank")
+  bankCode  String   @unique @map("bank_code")
+  alias     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("banks")
+}
+
+model CableProvider {
+  slug         String         @unique
+  name         String
+  logo         String
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  CableBouquet CableBouquet[]
+
+  @@map("cable_providers")
+}
+
+model CableBouquet {
+  name              String        @unique
+  provider          CableProvider @relation(fields: [cableProviderSlug], references: [slug])
+  cableProviderSlug String        @map("cable_provider_slug")
+  cycle             Int
+  packageCode       String        @map("package_code")
+  packagePrice      Int           @map("package_price")
+  addonCode         String?       @map("addon_code")
+  addonPrice        Int?          @map("addon_price")
+  totalAmount       Int           @map("total_amount")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  @@map("cable_bouquets")
+}
+
+model CableBeneficiary {
+  id              String   @unique @default(uuid())
+  userType        String   @map("user_type")
+  userId          String   @map("user_id")
+  alias           String
+  provider        String
+  smartCardNumber String   @unique @map("smart_card_number")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, smartCardNumber])
+  @@index([id, alias])
+  @@map("cable_beneficiaries")
+}
+
+model DataProvider {
+  name       String       @unique
+  logo       String
+  slug       String       @unique
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @default(now()) @updatedAt @map("updated_at")
+  DataBundle DataBundle[]
+
+  @@index([name, slug])
+  @@map("data_providers")
+}
+
+model DataBundle {
+  id           String       @unique @default(uuid())
+  provider     DataProvider @relation(fields: [providerSlug], references: [slug])
+  providerSlug String       @map("provider_slug")
+  price        Int
+  code         String
+  validity     String
+  allowance    String
+  metadata     Json
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([code, providerSlug])
+  @@map("data_bundles")
+}
+
+model AirtimeProvider {
+  name      String   @unique
+  logo      String
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([name, slug])
+  @@map("airtime_providers")
+}
+
+model InternetProvider {
+  slug           String           @unique
+  name           String
+  logo           String
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  InternetBundle InternetBundle[]
+
+  @@map("internet_providers")
+}
+
+model InternetBundle {
+  name                 String
+  allowance            String
+  amount               Int
+  validity             String
+  code                 Int              @unique
+  internetProviderSlug String
+  provider             InternetProvider @relation(fields: [internetProviderSlug], references: [slug])
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+
+  @@map("internet_bundles")
+}
+
+model BettingProvider {
+  name      String   @unique
+  slug      String   @unique
+  logo      String
+  minAmount Int      @map("min_amount")
+  maxAmount Int      @map("max_amount")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("betting_providers")
+}
+
+model ElectricityDisco {
+  name      String
+  logo      String
+  slug      String   @unique
+  type      String
+  baxi      String
+  shago     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("electricity_discos")
+}
+
+model ElectricityBeneficiary {
+  id          String   @unique @default(uuid())
+  discoId     String   @map("disco_id")
+  meterNumber String   @map("meter_number")
+  userId      String   @map("user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  alias       String
+
+  @@unique([meterNumber, userId, discoId])
+  @@index([id, alias, discoId, userId])
+  @@map("electricity_beneficiaries")
+}
+
+model CustomerSessions {
+  id         String    @unique @default(uuid())
+  customer   Customer  @relation(fields: [customerId], references: [id])
+  loginDate  DateTime  @map("login_date")
+  logoutDate DateTime? @map("logout_date")
+  device     String?
+  channel    String?
+  actions    Json[]
+  customerId String
+
+  @@map("customer_sessions")
+}
+
+model BankTransferBeneficiary {
+  id            String   @unique @default(uuid())
+  alias         String
+  userId        String   @map("user_id")
+  userType      String   @map("user_type")
+  accountNumber String   @map("account_number")
+  accountName   String   @map("account_name")
+  bankName      String   @map("bank_name")
+  bankCode      String   @map("bank_code")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([accountNumber, userId])
+  @@map("bank_transfer_beneficiaries")
+}
+
+model AirtimeBeneficiary {
+  id          String   @unique @default(uuid())
+  userType    String   @map("user_type")
+  userId      String   @map("user_id")
+  alias       String
+  network     String
+  phoneNumber String   @unique @map("phone_number")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, phoneNumber])
+  @@index([id, alias])
+  @@map("airtime_beneficiaries")
+}
+
+model BettingBeneficiary {
+  id         String   @unique @default(uuid())
+  customerId String   @unique @map("customer_id")
+  userId     String   @map("user_id")
+  provider   String
+  name       String
+  alias      String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([id, alias, customerId, userId])
+  @@map("betting_beneficiaries")
+}
+
+model p2pBeneficiary {
+  id                  String   @unique @default(uuid())
+  userId              String   @map("user_id")
+  userType            UserType @map("user_type")
+  destinationUserId   String   @map("destination_user_id")
+  destinationUserType String   @map("destination_user_type")
+  alias               String
+
+  @@unique([userId, destinationUserId, destinationUserType])
+  @@map("p2p_beneficiaries")
+}
+
+model UssdBank {
+  id       Int    @id @default(autoincrement())
+  name     String
+  bankCode String @unique
+  logo     String
+
+  @@map("ussd_banks")
+}
+
+model UssdTransaction {
+  traceId            String   @id @map("trace_id")
+  reference          String
+  cgateTransactionId String   @map("cgate_transaction_id")
+  bank               String
+  userId             String   @map("user_id")
+  userType           String   @map("user_type")
+  completed          Boolean
+  amount             Float
+  retrievalReference String   @map("retrieval_reference")
+  customerMobile     String
+  creditReference    String   @map("credit_reference")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("ussd_transactions")
+}
+
+model AdminInvite {
+  id           String    @unique @default(uuid())
+  email        String    @unique
+  role         String
+  accepted     Boolean   @default(false)
+  expiresIn    DateTime
+  dateAccepted DateTime? @map("date_accepted")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("admin_invites")
+}
+
+model Admin {
+  id          String   @unique @default(uuid())
+  firstName   String   @map("first_name")
+  lastName    String   @map("last_name")
+  email       String   @unique
+  phoneNumber String   @unique @map("phone_number")
+  password    String
+  role        String
+  disabled    Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([id, firstName, lastName, email, phoneNumber])
+  @@map("admin")
+}
+
+model SmartSpend {
+  id           String           @unique @default(uuid())
+  totalAmount  BigInt
+  periodAmount BigInt
+  cycle        SmartSpendCycle
+  duration     Int
+  runs         Int              @default(0)
+  startDate    DateTime
+  endDate      DateTime
+  payoutHour   Int
+  payoutMinute Int
+  status       SmartSpendStatus
+  wallet       Wallet           @relation(fields: [walletId], references: [id])
+  walletId     String
+  nextPayout   DateTime
+  user         Customer         @relation(fields: [userId], references: [id])
+  userId       String
+  jobId        String?
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  @@map("smart_spend")
+}
+
+enum SmartSpendCycle {
+  daily
+  weekly
+  monthly
+}
+
+enum SmartSpendStatus {
+  active
+  completed
+  cancelled
 }
